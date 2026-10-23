@@ -26,75 +26,115 @@ jobs:
         run: |
           set -eu
           unzip -o SweetConnectAndroid-project.zip -d extracted
-          find extracted -name settings.gradle -print
-
-      - name: Find Android project
-        run: |
-          set -eu
-          PROJECT_DIR=$(find extracted -name settings.gradle -printf '%h\n' | head -1)
+          PROJECT_DIR="$(dirname "$(find extracted -name settings.gradle -print -quit)")"
           test -n "$PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Copy latest app files
         run: |
           set -eu
-          TARGET="$PROJECT_DIR/app/src/main"
-          SOURCE="$GITHUB_WORKSPACE/app/src/main"
+          APP="$PROJECT_DIR/app"
 
-          test -f "$SOURCE/assets/index.html"
-          test -f "$SOURCE/java/com/sweetconnect/app/MainActivity.java"
-          test -f "$SOURCE/java/com/sweetconnect/app/SweetConnectMessagingService.java"
+          mkdir -p "$APP/src/main/assets"
+          mkdir -p "$APP/src/main/java/com/sweetconnect/app"
 
-          mkdir -p "$TARGET/assets"
-          mkdir -p "$TARGET/java/com/sweetconnect/app"
+          cp app/src/main/assets/index.html \
+            "$APP/src/main/assets/index.html"
 
-          cp "$SOURCE/assets/index.html" "$TARGET/assets/index.html"
-          cp "$SOURCE/java/com/sweetconnect/app/MainActivity.java" \
-             "$TARGET/java/com/sweetconnect/app/MainActivity.java"
-          cp "$SOURCE/java/com/sweetconnect/app/SweetConnectMessagingService.java" \
-             "$TARGET/java/com/sweetconnect/app/SweetConnectMessagingService.java"
+          cp app/src/main/java/com/sweetconnect/app/MainActivity.java \
+            "$APP/src/main/java/com/sweetconnect/app/MainActivity.java"
 
-          cp "$SOURCE/AndroidManifest.xml" "$TARGET/AndroidManifest.xml"
+          cp app/src/main/java/com/sweetconnect/app/SweetConnectMessagingService.java \
+            "$APP/src/main/java/com/sweetconnect/app/SweetConnectMessagingService.java"
 
-      - name: Configure Firebase
+          cp google-services.json "$APP/google-services.json"
+
+      - name: Configure Firebase and Android
         run: |
           set -eu
-          test -f "$GITHUB_WORKSPACE/google-services.json"
-          cp "$GITHUB_WORKSPACE/google-services.json" \
-             "$PROJECT_DIR/app/google-services.json"
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
 
-          python3 - "$PROJECT_DIR" <<'PY'
-          import pathlib
-          import sys
+          project = Path(os.environ["PROJECT_DIR"])
+          root_gradle = project / "build.gradle"
+          app_gradle = project / "app" / "build.gradle"
+          manifest = project / "app" / "src" / "main" / "AndroidManifest.xml"
 
-          root = pathlib.Path(sys.argv[1])
-          root_gradle = root / "build.gradle"
-          app_gradle = root / "app/build.gradle"
-
+          # Add Google Services plugin without deleting existing settings.
           root_text = root_gradle.read_text()
           plugin = "id 'com.google.gms.google-services' version '4.4.4' apply false"
           if "com.google.gms.google-services" not in root_text:
-              root_gradle.write_text(
-                  root_text.rstrip()[:-0] + "\n" + plugin + "\n"
-              )
+              match = re.search(r"plugins\s*\{", root_text)
+              if not match:
+                  raise SystemExit("ไม่พบ plugins block ใน build.gradle")
+              end = root_text.find("}", match.end())
+              if end < 0:
+                  raise SystemExit("หา plugins block ปิดไม่พบ")
+              root_text = root_text[:end] + "\n    " + plugin + "\n" + root_text[end:]
+              root_gradle.write_text(root_text)
 
+          # Apply Google Services plugin inside the app plugins block.
           app_text = app_gradle.read_text()
           if "com.google.gms.google-services" not in app_text:
-              app_text = app_text.replace(
-                  "plugins {",
-                  "plugins {\n    id 'com.google.gms.google-services'",
+              match = re.search(r"plugins\s*\{", app_text)
+              if not match:
+                  raise SystemExit("ไม่พบ plugins block ใน app/build.gradle")
+              end = app_text.find("}", match.end())
+              if end < 0:
+                  raise SystemExit("หา app plugins block ปิดไม่พบ")
+              app_text = app_text[:end] + "\n    id 'com.google.gms.google-services'\n" + app_text[end:]
+
+          # Add dependencies only when missing.
+          additions = []
+          if "androidx.core:core" not in app_text:
+              additions.append("    implementation 'androidx.core:core:1.15.0'")
+          if "firebase-bom" not in app_text:
+              additions.append("    implementation platform('com.google.firebase:firebase-bom:34.4.0')")
+          if "firebase-messaging" not in app_text:
+              additions.append("    implementation 'com.google.firebase:firebase-messaging'")
+
+          if additions:
+              if re.search(r"dependencies\s*\{", app_text):
+                  match = re.search(r"dependencies\s*\{", app_text)
+                  end = app_text.find("}", match.end())
+                  if end < 0:
+                      raise SystemExit("หา dependencies block ปิดไม่พบ")
+                  app_text = app_text[:end] + "\n" + "\n".join(additions) + "\n" + app_text[end:]
+              else:
+                  app_text += "\n\ndependencies {\n" + "\n".join(additions) + "\n}\n"
+
+          app_gradle.write_text(app_text)
+
+          # Keep the original manifest; add notification permission and service.
+          manifest_text = manifest.read_text()
+          permission = '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'
+          if "android.permission.POST_NOTIFICATIONS" not in manifest_text:
+              manifest_text = manifest_text.replace(
+                  "<application",
+                  permission + "\n    <application",
                   1
               )
 
-          if "firebase-bom" not in app_text:
-              app_text += """
-          dependencies {
-              implementation 'androidx.core:core:1.15.0'
-              implementation platform('com.google.firebase:firebase-bom:34.4.0')
-              implementation 'com.google.firebase:firebase-messaging'
-          }
-          """
-          app_gradle.write_text(app_text)
+          if "SweetConnectMessagingService" not in manifest_text:
+              service = '''
+                  <service
+                      android:name=".SweetConnectMessagingService"
+                      android:exported="false">
+                      <intent-filter>
+                          <action android:name="com.google.firebase.MESSAGING_EVENT" />
+                      </intent-filter>
+                  </service>
+              '''
+              manifest_text = manifest_text.replace(
+                  "</application>",
+                  service + "\n</application>",
+                  1
+              )
+
+          manifest.write_text(manifest_text)
+          print("ตั้งค่า Firebase และ Manifest แล้ว")
           PY
 
       - name: Build APK
