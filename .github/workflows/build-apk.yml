@@ -1,4 +1,3 @@
-
 name: Build SweetConnect APK
 
 'on':
@@ -7,6 +6,7 @@ name: Build SweetConnect APK
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,56 +32,70 @@ jobs:
         run: |
           set -eu
           PROJECT_DIR=$(find extracted -name settings.gradle -printf '%h\n' | head -1)
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "หา settings.gradle ไม่พบ"
-            exit 1
-          fi
+          test -n "$PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-      - name: Copy latest HTML into build project
+      - name: Copy latest app files
         run: |
           set -eu
-          SOURCE="$GITHUB_WORKSPACE/app/src/main/assets/index.html"
-          TARGET="$PROJECT_DIR/app/src/main/assets/index.html"
+          TARGET="$PROJECT_DIR/app/src/main"
+          SOURCE="$GITHUB_WORKSPACE/app/src/main"
 
-          if [ ! -f "$SOURCE" ]; then
-            echo "ไม่พบ HTML: $SOURCE"
-            exit 1
-          fi
+          test -f "$SOURCE/assets/index.html"
+          test -f "$SOURCE/java/com/sweetconnect/app/MainActivity.java"
+          test -f "$SOURCE/java/com/sweetconnect/app/SweetConnectMessagingService.java"
 
-          mkdir -p "$(dirname "$TARGET")"
-          cp "$SOURCE" "$TARGET"
-          echo "คัดลอก index.html แล้ว"
+          mkdir -p "$TARGET/assets"
+          mkdir -p "$TARGET/java/com/sweetconnect/app"
 
-      - name: Copy latest Java into build project
+          cp "$SOURCE/assets/index.html" "$TARGET/assets/index.html"
+          cp "$SOURCE/java/com/sweetconnect/app/MainActivity.java" \
+             "$TARGET/java/com/sweetconnect/app/MainActivity.java"
+          cp "$SOURCE/java/com/sweetconnect/app/SweetConnectMessagingService.java" \
+             "$TARGET/java/com/sweetconnect/app/SweetConnectMessagingService.java"
+
+          cp "$SOURCE/AndroidManifest.xml" "$TARGET/AndroidManifest.xml"
+
+      - name: Configure Firebase
         run: |
           set -eu
-          SOURCE="$GITHUB_WORKSPACE/app/src/main/java/com/sweetconnect/app/MainActivity.java"
-          TARGET="$PROJECT_DIR/app/src/main/java/com/sweetconnect/app/MainActivity.java"
+          test -f "$GITHUB_WORKSPACE/google-services.json"
+          cp "$GITHUB_WORKSPACE/google-services.json" \
+             "$PROJECT_DIR/app/google-services.json"
 
-          if [ ! -f "$SOURCE" ]; then
-            echo "ไม่พบ MainActivity.java ใน GitHub: $SOURCE"
-            exit 1
-          fi
+          python3 - "$PROJECT_DIR" <<'PY'
+          import pathlib
+          import sys
 
-          mkdir -p "$(dirname "$TARGET")"
-          cp "$SOURCE" "$TARGET"
-          echo "คัดลอก MainActivity.java แล้ว"
-          test -s "$TARGET"
+          root = pathlib.Path(sys.argv[1])
+          root_gradle = root / "build.gradle"
+          app_gradle = root / "app/build.gradle"
 
-      - name: Add AndroidX Core dependency
-        run: |
-          set -eu
-          FILE="$PROJECT_DIR/app/build.gradle"
+          root_text = root_gradle.read_text()
+          plugin = "id 'com.google.gms.google-services' version '4.4.4' apply false"
+          if "com.google.gms.google-services" not in root_text:
+              root_gradle.write_text(
+                  root_text.rstrip()[:-0] + "\n" + plugin + "\n"
+              )
 
-          if [ ! -f "$FILE" ]; then
-            echo "หา app/build.gradle ไม่พบ"
-            exit 1
-          fi
+          app_text = app_gradle.read_text()
+          if "com.google.gms.google-services" not in app_text:
+              app_text = app_text.replace(
+                  "plugins {",
+                  "plugins {\n    id 'com.google.gms.google-services'",
+                  1
+              )
 
-          if ! grep -q "androidx.core:core" "$FILE"; then
-            printf "\ndependencies {\n    implementation 'androidx.core:core:1.15.0'\n}\n" >> "$FILE"
-          fi
+          if "firebase-bom" not in app_text:
+              app_text += """
+          dependencies {
+              implementation 'androidx.core:core:1.15.0'
+              implementation platform('com.google.firebase:firebase-bom:34.4.0')
+              implementation 'com.google.firebase:firebase-messaging'
+          }
+          """
+          app_gradle.write_text(app_text)
+          PY
 
       - name: Build APK
         run: |
