@@ -7,24 +7,25 @@ import android.os.Bundle;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.util.Log;
 import android.webkit.GeolocationPermissions;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.WebSettings;
-import android.webkit.WebResourceRequest;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 public class MainActivity extends Activity {
+    private static final String TAG = "SweetConnect";
+    private static final int LOCATION_REQUEST = 401;
+    private static final int FILE_REQUEST = 402;
+
     private WebView webView;
     private GeolocationPermissions.Callback geoCallback;
     private String geoOrigin;
     private ValueCallback<Uri[]> fileCallback;
-
-    private static final int LOCATION_REQUEST = 401;
-    private static final int FILE_REQUEST = 402;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -37,6 +38,8 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setGeolocationEnabled(true);
+        settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
 
         webView.setWebViewClient(new WebViewClient());
 
@@ -59,7 +62,7 @@ public class MainActivity extends Activity {
                     geoCallback = callback;
                     ActivityCompat.requestPermissions(
                         MainActivity.this,
-                        new String[]{
+                        new String[] {
                             Manifest.permission.ACCESS_FINE_LOCATION,
                             Manifest.permission.ACCESS_COARSE_LOCATION
                         },
@@ -73,23 +76,24 @@ public class MainActivity extends Activity {
                     WebView view,
                     ValueCallback<Uri[]> callback,
                     FileChooserParams params) {
+
                 if (fileCallback != null) {
                     fileCallback.onReceiveValue(null);
                 }
-
                 fileCallback = callback;
 
-                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("image/*");
-
                 try {
-                    startActivityForResult(
-                        Intent.createChooser(intent, "เลือกรูปภาพ"),
-                        FILE_REQUEST
-                    );
+                    Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("image/*");
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+                    startActivityForResult(intent, FILE_REQUEST);
                     return true;
+
                 } catch (Exception e) {
+                    Log.e(TAG, "เปิดตัวเลือกรูปไม่ได้", e);
+                    fileCallback.onReceiveValue(null);
                     fileCallback = null;
                     return false;
                 }
@@ -107,11 +111,9 @@ public class MainActivity extends Activity {
         if (requestCode == FILE_REQUEST && fileCallback != null) {
             Uri[] results = null;
 
-            if (resultCode == RESULT_OK && data != null) {
-                Uri uri = data.getData();
-                if (uri != null) {
-                    results = new Uri[]{uri};
-                }
+            if (resultCode == RESULT_OK && data != null
+                    && data.getData() != null) {
+                results = new Uri[] { data.getData() };
             }
 
             fileCallback.onReceiveValue(results);
@@ -121,13 +123,14 @@ public class MainActivity extends Activity {
 
     @Override
     public void onRequestPermissionsResult(
-            int requestCode, String[] permissions, int[] grantResults) {
+            int requestCode,
+            String[] permissions,
+            int[] grantResults) {
         super.onRequestPermissionsResult(
             requestCode, permissions, grantResults);
 
         if (requestCode == LOCATION_REQUEST && geoCallback != null) {
             boolean granted = false;
-
             for (int result : grantResults) {
                 if (result == PackageManager.PERMISSION_GRANTED) {
                     granted = true;
@@ -147,5 +150,18 @@ public class MainActivity extends Activity {
         } else {
             super.onBackPressed();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (fileCallback != null) {
+            fileCallback.onReceiveValue(null);
+            fileCallback = null;
+        }
+        if (webView != null) {
+            webView.destroy();
+            webView = null;
+        }
+        super.onDestroy();
     }
 }
