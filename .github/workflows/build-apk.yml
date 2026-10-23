@@ -28,7 +28,7 @@ jobs:
           unzip -o SweetConnectAndroid-project.zip -d extracted
           find extracted -name settings.gradle -print
 
-      - name: Copy latest HTML into build project
+      - name: Find Android project
         run: |
           set -eu
           PROJECT_DIR=$(find extracted -name settings.gradle -printf '%h\n' | head -1)
@@ -36,30 +36,46 @@ jobs:
             echo "หา settings.gradle ไม่พบ"
             exit 1
           fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
+      - name: Copy latest HTML into build project
+        run: |
+          set -eu
           SOURCE="$GITHUB_WORKSPACE/app/src/main/assets/index.html"
           TARGET="$PROJECT_DIR/app/src/main/assets/index.html"
 
           if [ ! -f "$SOURCE" ]; then
-            echo "ไม่พบ HTML ใหม่ใน GitHub: $SOURCE"
+            echo "ไม่พบ HTML: $SOURCE"
             exit 1
           fi
 
           mkdir -p "$(dirname "$TARGET")"
           cp "$SOURCE" "$TARGET"
+          echo "คัดลอก index.html แล้ว"
 
-          echo "ตรวจสอบไฟล์ HTML ที่จะนำไป Build:"
-          ls -l "$TARGET"
-          sha256sum "$SOURCE" "$TARGET"
+      - name: Copy latest Java into build project
+        run: |
+          set -eu
+          SOURCE="$GITHUB_WORKSPACE/app/src/main/java/com/sweetconnect/app/MainActivity.java"
+          TARGET="$PROJECT_DIR/app/src/main/java/com/sweetconnect/app/MainActivity.java"
+
+          if [ ! -f "$SOURCE" ]; then
+            echo "ไม่พบ MainActivity.java ใน GitHub: $SOURCE"
+            exit 1
+          fi
+
+          mkdir -p "$(dirname "$TARGET")"
+          cp "$SOURCE" "$TARGET"
+          echo "คัดลอก MainActivity.java แล้ว"
+          test -s "$TARGET"
 
       - name: Add AndroidX Core dependency
         run: |
           set -eu
-          PROJECT_DIR=$(find extracted -name settings.gradle -printf '%h\n' | head -1)
           FILE="$PROJECT_DIR/app/build.gradle"
 
           if [ ! -f "$FILE" ]; then
-            echo "หาไฟล์ app/build.gradle ไม่พบ"
+            echo "หา app/build.gradle ไม่พบ"
             exit 1
           fi
 
@@ -70,7 +86,6 @@ jobs:
       - name: Build APK
         run: |
           set -eu
-          PROJECT_DIR=$(find extracted -name settings.gradle -printf '%h\n' | head -1)
           cd "$PROJECT_DIR"
           gradle assembleDebug
 
