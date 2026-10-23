@@ -1,145 +1,333 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SweetConnect - แอปคู่รัก แชท & GPS</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        body { font-family: 'Prompt', sans-serif; background-color: #0f172a; color: #f8fafc; }
-        #map { height: 260px; width: 100%; border-radius: 0.75rem; z-index: 10; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#ffe4ef">
+<title>SweetConnect 💗</title>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--pink:#f472a8;--darkpink:#db4f8b;--pale:#fff4f8;--ink:#573849}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(160deg,#fff0f6,#ffe4ef);color:var(--ink);font-family:system-ui,sans-serif}
+header{background:#fff9fc;padding:18px;text-align:center;border-bottom:1px solid #ffd3e4;position:sticky;top:0;z-index:10}
+h1{margin:0;color:#d94686;font-size:25px}
+.sub{font-size:12px;color:#9d7187}
+main{max-width:650px;margin:auto;padding:14px}
+.card{background:#fffafd;border:1px solid #ffd4e5;border-radius:20px;padding:16px;margin-bottom:13px;box-shadow:0 5px 18px #d85c8b12}
+h2{font-size:17px;margin:0 0 12px}
+input,button{font:inherit;border-radius:12px;padding:12px;border:1px solid #f5c4d8}
+input{background:white;color:#573849;width:100%;min-width:0}
+button{background:var(--pink);color:white;border:0;font-weight:700;cursor:pointer}
+button:disabled{opacity:.5}
+.row{display:flex;gap:8px;margin:8px 0}
+.row>*{min-width:0}
+.row input{flex:1}
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+.tabs button{flex:1}
+.secondary{background:#ffe2ee;color:#9d3868}
+.muted{font-size:12px;color:#9d7187}
+.hidden{display:none!important}
+#messages{height:300px;overflow:auto;background:#fff4f8;border-radius:15px;padding:10px;margin:10px 0}
+.msg{background:white;border:1px solid #ffe0ec;border-radius:15px;padding:10px;margin:8px 0;max-width:88%;overflow-wrap:anywhere}
+.msg.mine{margin-left:auto;background:#ffdce9}
+.msg small{display:block;font-size:10px;color:#a4778d;margin-top:5px}
+#map{height:300px;border-radius:15px;z-index:1;background:#fff4f8}
+.status{display:inline-block;width:9px;height:9px;border-radius:50%;background:#bbb;margin-right:5px}
+.status.on{background:#22c55e}
+footer{text-align:center;font-size:11px;color:#a4778d;padding:16px}
+</style>
 </head>
-<body class="h-screen w-screen overflow-hidden flex flex-col bg-slate-950 text-slate-100">
+<body>
+<header><h1>SweetConnect 💗</h1><div class="sub">พื้นที่เล็ก ๆ ของเราสองคน</div></header>
+<main>
+<section id="auth-card" class="card">
+<h2>💌 เข้าสู่ SweetConnect</h2>
+<input id="email" type="email" placeholder="อีเมล" autocomplete="email">
+<div style="height:8px"></div>
+<input id="password" type="password" placeholder="รหัสผ่านอย่างน้อย 6 ตัว" autocomplete="current-password">
+<div class="row"><button id="login-btn" style="flex:1">เข้าสู่ระบบ</button><button id="register-btn" class="secondary" style="flex:1">สมัครสมาชิก</button></div>
+<p id="auth-status" class="muted"></p>
+</section>
+<section id="app" class="hidden">
+<div class="card">
+<div>บัญชี: <b id="my-email"></b></div>
+<div class="muted"><span id="my-status" class="status"></span><span id="my-status-text">กำลังเชื่อมต่อ</span></div>
+<div class="row"><button id="logout-btn" class="secondary">ออกจากระบบ</button><button id="notify-btn" class="secondary">🔔 เปิดแจ้งเตือน</button></div>
+<p id="notify-status" class="muted"></p>
+</div>
+<div class="card">
+<h2>💞 จับคู่กับแฟน</h2><p class="muted">คนหนึ่งสร้างรหัส แล้วอีกคนกรอกรหัสเดียวกัน</p>
+<button id="create-room-btn">สร้างรหัสจับคู่</button>
+<p>รหัสของคุณ: <b id="room-code">ยังไม่มี</b></p>
+<div class="row"><input id="join-code" maxlength="10" placeholder="กรอกรหัส 10 ตัว"><button id="join-room-btn">จับคู่</button></div>
+<p id="pair-status" class="muted">ยังไม่ได้จับคู่</p>
+</div>
+<div class="tabs"><button id="chat-tab">💬 แชท</button><button id="gps-tab" class="secondary">📍 GPS</button></div>
+<section id="chat-panel" class="card">
+<h2>💗 ห้องแชทของเรา</h2>
+<div class="muted"><span id="partner-status" class="status"></span><span id="partner-status-text">ยังไม่ทราบสถานะของแฟน</span></div>
+<div id="messages"></div>
+<form id="send-form" class="row"><input id="message-input" maxlength="2000" placeholder="พิมพ์ข้อความ..." autocomplete="off"><button id="send-btn" type="submit">ส่ง</button></form>
+<div class="row"><input id="image-input" type="file" accept="image/*"><button id="send-image-btn" type="button" class="secondary">ส่งรูป</button></div>
+<p class="muted">ส่งรูปโดยบีบอัดเก็บใน Firestore โดยตรง เหมาะกับรูปขนาดเล็กและใช้ส่วนตัว ไม่ใช่พื้นที่เก็บรูปจำนวนมาก</p>
+</section>
+<section id="gps-panel" class="card hidden">
+<h2>📍 ตำแหน่งของเราสองคน</h2>
+<p id="gps-status" class="muted">จับคู่กับแฟนก่อน แล้วกดแชร์ตำแหน่ง</p>
+<div class="row"><button id="gps-btn">แชร์ตำแหน่งของฉัน</button><button id="stop-gps-btn" class="secondary">หยุดแชร์</button></div>
+<div id="map"></div>
+<p class="muted">ตำแหน่งจะถูกบันทึกเมื่อคุณกดแชร์เท่านั้น ผู้ที่จับคู่ในห้องเดียวกันจะอ่านตำแหน่งได้</p>
+</section>
+</section>
+</main>
+<footer>สร้างด้วยความรัก 💗 SweetConnect</footer>
+<script>
+const firebaseConfig={
+ apiKey:"AIzaSyAbw_w6Tu3DTzmYIyMHT1yrmeIdEx5fTJI",
+ authDomain:"love-ee2b1.firebaseapp.com",
+ projectId:"love-ee2b1",
+ storageBucket:"love-ee2b1.firebasestorage.app",
+ messagingSenderId:"501101093673",
+ appId:"1:501101093673:web:3431d1b7790dada9c80d38"
+};
+firebase.initializeApp(firebaseConfig);
+const auth=firebase.auth(),db=firebase.firestore();
+const $=id=>document.getElementById(id);
+const serverTime=()=>firebase.firestore.FieldValue.serverTimestamp();
+let user=null,roomId=null,roomData=null;
+let messageUnsub=null,roomUnsub=null,presenceUnsub=null,locationsUnsub=null,heartbeat=null;
+let map=null,myMarker=null,partnerMarker=null,lastNotificationId=null,firstMessageSnapshot=true;
+let presenceUid=null,gpsSharing=false;
 
-    <!-- HEADER -->
-    <header class="bg-slate-900 border-b border-slate-800 p-3 flex justify-between items-center">
-        <div class="flex items-center space-x-2">
-            <div class="w-8 h-8 rounded-full bg-pink-500/20 border border-pink-500 flex items-center justify-center">
-                <i class="fa-solid fa-heart text-pink-500 animate-pulse text-sm"></i>
-            </div>
-            <div>
-                <h1 class="font-bold text-sm text-pink-400">SweetConnect</h1>
-                <p class="text-[10px] text-slate-400">พื้นที่ส่วนตัวของคุณและแฟน</p>
-            </div>
-        </div>
-        <button onclick="requestNotification()" class="bg-slate-800 text-pink-400 border border-pink-500/30 px-3 py-1 rounded-full text-xs">
-            <i class="fa-solid fa-bell"></i> เปิดแจ้งเตือน
-        </button>
-    </header>
+function status(text,id="auth-status"){const el=$(id);if(el)el.textContent=text}
+function errText(e){return (e&&e.code?e.code+": ":"")+(e&&e.message?e.message:String(e))}
+function randomCode(){const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="";for(let i=0;i<10;i++)s+=chars[Math.floor(Math.random()*chars.length)];return s}
+function setPanel(which){
+ $("chat-panel").classList.toggle("hidden",which!=="chat");$("gps-panel").classList.toggle("hidden",which!=="gps");
+ $("chat-tab").className=which==="chat"?"":"secondary";$("gps-tab").className=which==="gps"?"":"secondary";
+ if(which==="gps"){setTimeout(()=>{if(map)map.invalidateSize()},200);if(roomId)listenLocations()}
+}
+$("chat-tab").onclick=()=>setPanel("chat");$("gps-tab").onclick=()=>setPanel("gps");
 
-    <!-- NAV TABS -->
-    <nav class="flex border-b border-slate-800 bg-slate-900 text-xs font-medium">
-        <button onclick="switchTab('chat')" id="tab-btn-chat" class="flex-1 py-2.5 text-center text-pink-400 border-b-2 border-pink-500 bg-slate-800/40">
-            <i class="fa-solid fa-comments mr-1"></i> แชทคู่รัก
-        </button>
-        <button onclick="switchTab('gps')" id="tab-btn-gps" class="flex-1 py-2.5 text-center text-slate-400">
-            <i class="fa-solid fa-location-dot mr-1"></i> ตำแหน่ง GPS
-        </button>
-    </nav>
+$("register-btn").onclick=async()=>{
+ try{const email=$("email").value.trim(),password=$("password").value;if(!email||password.length<6)throw Error("กรอกอีเมลและรหัสผ่านอย่างน้อย 6 ตัว");await auth.createUserWithEmailAndPassword(email,password)}
+ catch(e){status(errText(e))}
+};
+$("login-btn").onclick=async()=>{
+ try{const email=$("email").value.trim(),password=$("password").value;if(!email||!password)throw Error("กรอกอีเมลและรหัสผ่านก่อน");await auth.signInWithEmailAndPassword(email,password)}
+ catch(e){status(errText(e))}
+};
+$("logout-btn").onclick=async()=>{
+ try{await stopRoom();if(user&&roomId)await setPresence(false);else if(user&&presenceUid)await setPresence(false);await auth.signOut()}
+ catch(e){status("ออกจากระบบไม่สำเร็จ: "+errText(e))}
+};
+auth.onAuthStateChanged(async u=>{
+ user=u;
+ if(heartbeat){clearInterval(heartbeat);heartbeat=null}
+ $("auth-card").classList.toggle("hidden",!!u);$("app").classList.toggle("hidden",!u);
+ if(!u){await stopRoom();$("my-email").textContent="";$("my-status-text").textContent="ออฟไลน์";return}
+ $("my-email").textContent=u.email||"ผู้ใช้";
+ await updatePresence(true);
+ heartbeat=setInterval(()=>updatePresence(!document.hidden),60000);
+ const saved=localStorage.getItem("sweetconnect_room_"+u.uid);
+ if(saved){try{const snap=await db.collection("pairs").doc(saved).get();if(snap.exists&&[snap.data().ownerUid,snap.data().partnerUid].includes(u.uid))await openRoom(saved)}catch(e){status("กู้คืนห้องไม่ได้: "+errText(e),"pair-status")}}
+});
+async function setPresence(online){
+ if(!user||!roomId)return;
+ await db.collection("pairs").doc(roomId).collection("presence").doc(user.uid).set({online,lastSeen:serverTime()},{merge:true});
+ $("my-status").className="status "+(online?"on":"");$("my-status-text").textContent=online?"ออนไลน์โดยประมาณ":"ออฟไลน์";
+}
+async function updatePresence(online){
+ if(!user)return;
+ if(!roomId){$("my-status").className="status "+(online?"on":"");$("my-status-text").textContent=online?"เข้าสู่ระบบแล้ว":"ออฟไลน์";return}
+ try{await setPresence(online)}catch(e){$("my-status-text").textContent="อัปเดตสถานะไม่ได้ ("+(e.code||"error")+")"}
+}
+document.addEventListener("visibilitychange",()=>{if(user)updatePresence(!document.hidden)});
+window.addEventListener("pagehide",()=>{if(user&&roomId)setPresence(false).catch(()=>{})});
 
-    <!-- MAIN CONTENT -->
-    <main class="flex-1 overflow-y-auto p-3 relative">
-        <!-- CHAT TAB -->
-        <div id="tab-chat" class="h-full flex flex-col space-y-3">
-            <div id="chat-box" class="flex-1 bg-slate-900 border border-slate-800 rounded-xl p-3 overflow-y-auto space-y-2 text-xs min-h-[240px]">
-                <div class="flex justify-center my-1">
-                    <span class="bg-slate-800 text-slate-400 text-[10px] px-2.5 py-0.5 rounded-full">ห้องแชทส่วนตัวสองคน 💖</span>
-                </div>
-                <div class="flex flex-col items-start space-y-0.5">
-                    <span class="text-[10px] text-pink-400 ml-1">แฟนของคุณ ❤️</span>
-                    <div class="bg-slate-800 text-slate-200 p-2.5 rounded-2xl rounded-tl-none border border-slate-700 max-w-[80%]">
-                        คิดถึงจังเลยครับ ทำอะไรอยู่เหรอ?
-                    </div>
-                </div>
-            </div>
+$("create-room-btn").onclick=async()=>{
+ if(!user)return;
+ try{
+ status("กำลังสร้างรหัส...","pair-status");let code="",created=false;
+ for(let i=0;i<5&&!created;i++){
+  code=randomCode();const ref=db.collection("pairs").doc(code),snap=await ref.get();if(snap.exists)continue;
+  await ref.set({ownerUid:user.uid,partnerUid:null,createdAt:serverTime()});created=true
+ }
+ if(!created)throw Error("สร้างรหัสไม่สำเร็จ ลองใหม่อีกครั้ง");
+ $("room-code").textContent=code;await openRoom(code);status("ส่งรหัสนี้ให้แฟน แล้วให้กรอกรหัสเพื่อจับคู่","pair-status")
+ }catch(e){status("สร้างรหัสไม่สำเร็จ: "+errText(e),"pair-status")}
+};
+$("join-room-btn").onclick=async()=>{
+ if(!user)return;const code=$("join-code").value.trim().toUpperCase();
+ if(code.length!==10)return status("กรอกรหัสให้ครบ 10 ตัว","pair-status");
+ try{
+ const ref=db.collection("pairs").doc(code);
+ await db.runTransaction(async tx=>{
+  const snap=await tx.get(ref);if(!snap.exists)throw Error("ไม่พบรหัสนี้");const d=snap.data();
+  if(d.ownerUid===user.uid||d.partnerUid===user.uid)return;
+  if(d.partnerUid)throw Error("รหัสนี้มีคนจับคู่แล้ว");
+  tx.update(ref,{partnerUid:user.uid})
+ });
+ await openRoom(code);$("join-code").value=""
+ }catch(e){status("จับคู่ไม่สำเร็จ: "+errText(e),"pair-status")}
+};
 
-            <button onclick="sendLoveAlert()" class="bg-gradient-to-r from-pink-600 to-rose-600 text-white py-2 rounded-xl text-xs font-bold">
-                <i class="fa-solid fa-heart-pulse"></i> ส่งความคิดถึงให้แฟน (Send Love Alert)
-            </button>
+async function openRoom(code){
+ await stopRoom();roomId=code;localStorage.setItem("sweetconnect_room_"+user.uid,code);$("room-code").textContent=code;
+ const ref=db.collection("pairs").doc(code);
+ roomUnsub=ref.onSnapshot(snap=>{
+  if(!snap.exists){status("ไม่พบห้องแชท","pair-status");return}
+  roomData=snap.data();
+  if(![roomData.ownerUid,roomData.partnerUid].includes(user.uid)){status("คุณไม่ได้เป็นสมาชิกห้องนี้","pair-status");return}
+  const partnerUid=user.uid===roomData.ownerUid?roomData.partnerUid:roomData.ownerUid;
+  status(partnerUid?"จับคู่สำเร็จแล้ว 💗":"รอแฟนกรอกรหัสจับคู่","pair-status");
+  listenMessages();
+  if(partnerUid){listenPartner(partnerUid);listenLocations();updatePresence(!document.hidden)}
+  else{if(presenceUnsub){presenceUnsub();presenceUnsub=null} $("partner-status-text").textContent="รอแฟนกรอกรหัสจับคู่"}
+ },e=>status("อ่านข้อมูลห้องไม่ได้: "+errText(e),"pair-status"));
+}
+function listenPartner(uid){
+ if(presenceUnsub&&presenceUid===uid)return;
+ if(presenceUnsub)presenceUnsub();presenceUid=uid;
+ presenceUnsub=db.collection("pairs").doc(roomId).collection("presence").doc(uid).onSnapshot(snap=>{
+  const d=snap.data(),fresh=d&&d.lastSeen&&typeof d.lastSeen.toMillis==="function"&&Date.now()-d.lastSeen.toMillis()<120000;
+  const online=!!(d&&d.online&&fresh);
+  $("partner-status").className="status "+(online?"on":"");
+  $("partner-status-text").textContent=online?"แฟนอาจกำลังออนไลน์":"แฟนออฟไลน์หรือไม่ได้อัปเดตสถานะ";
+ },e=>{$("partner-status-text").textContent="อ่านสถานะแฟนไม่ได้ ("+(e.code||"error")+")"})
+}
+function listenMessages(){
+ if(messageUnsub)messageUnsub();
+ firstMessageSnapshot=true;
+ messageUnsub=db.collection("pairs").doc(roomId).collection("messages").orderBy("createdAt","asc").limit(100).onSnapshot(snapshot=>{
+  const box=$("messages");
+  if(firstMessageSnapshot){firstMessageSnapshot=false;lastNotificationId=snapshot.docs.length?snapshot.docs[snapshot.docs.length-1].id:null}
+  else snapshot.docChanges().forEach(change=>{
+   const m=change.doc.data();
+   if(change.type==="added"&&m.senderUid!==user.uid&&change.doc.id!==lastNotificationId)showNotification(m)
+  });
+  if(snapshot.docs.length)lastNotificationId=snapshot.docs[snapshot.docs.length-1].id;
+  box.replaceChildren();
+  snapshot.forEach(doc=>{
+   const m=doc.data(),div=document.createElement("div");div.className="msg "+(m.senderUid===user.uid?"mine":"");
+   const who=document.createElement("b");who.textContent=m.senderUid===user.uid?"คุณ":"แฟน 💗";div.appendChild(who);
+   if(m.text){const p=document.createElement("div");p.textContent=m.text;div.appendChild(p)}
+   if(m.imageData){const img=document.createElement("img");img.src=m.imageData;img.alt="รูปที่ส่งในแชท";img.loading="lazy";img.style.cssText="display:block;max-width:100%;max-height:320px;border-radius:10px;margin-top:6px";div.appendChild(img)}
+   const small=document.createElement("small");small.textContent=m.createdAt&&m.createdAt.toDate?m.createdAt.toDate().toLocaleString("th-TH"):"ส่งแล้ว";div.appendChild(small);box.appendChild(div)
+  });
+  box.scrollTop=box.scrollHeight
+ },e=>status("โหลดแชทไม่สำเร็จ: "+errText(e),"pair-status"))
+}
+async function showNotification(m){
+ if(document.visibilityState==="visible"||!("Notification"in window)||Notification.permission!=="granted")return;
+ try{new Notification("SweetConnect 💗",{body:m.text||"แฟนส่งข้อความมาให้คุณ"})}catch(e){}
+}
+$("send-form").onsubmit=async e=>{
+ e.preventDefault();const text=$("message-input").value.trim();
+ if(!text)return;
+ if(!user||!roomId||!roomData?.partnerUid){status("ต้องจับคู่กับแฟนก่อนจึงจะส่งข้อความได้","pair-status");return}
+ $("send-btn").disabled=true;
+ try{await db.collection("pairs").doc(roomId).collection("messages").add({senderUid:user.uid,text,createdAt:serverTime()});$("message-input").value=""}
+ catch(e){status("ส่งข้อความไม่สำเร็จ: "+errText(e),"pair-status")}
+ finally{$("send-btn").disabled=false}
+};
 
-            <div class="flex gap-2">
-                <input type="text" id="chat-input" placeholder="พิมพ์ข้อความหาแฟน..." class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-pink-500">
-                <button onclick="sendMessage()" class="bg-pink-600 text-white px-4 py-2 rounded-xl text-xs font-bold">ส่ง</button>
-            </div>
-        </div>
+function compressImage(file){
+ return new Promise((resolve,reject)=>{
+  if(!file||!file.type.startsWith("image/"))return reject(Error("เลือกไฟล์รูปภาพก่อน"));
+  const reader=new FileReader();reader.onerror=()=>reject(Error("อ่านไฟล์รูปไม่ได้"));
+  reader.onload=()=>{const img=new Image();img.onerror=()=>reject(Error("เปิดรูปภาพไม่ได้"));img.onload=()=>{
+   const max=800,scale=Math.min(1,max/Math.max(img.width,img.height));
+   const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));
+   const ctx=canvas.getContext("2d");ctx.drawImage(img,0,0,canvas.width,canvas.height);
+   const data=canvas.toDataURL("image/jpeg",0.62);
+   if(data.length>500000)return reject(Error("รูปยังใหญ่เกินไป ลองเลือกรูปอื่น"));resolve(data)
+  };img.src=reader.result};reader.readAsDataURL(file)
+ })
+}
+$("send-image-btn").onclick=async()=>{
+ const file=$("image-input").files[0];
+ if(!user||!roomId||!roomData?.partnerUid){status("ต้องจับคู่กับแฟนก่อนจึงจะส่งรูปได้","pair-status");return}
+ if(!file){status("เลือกรูปก่อนกดส่งรูป","pair-status");return}
+ const btn=$("send-image-btn");btn.disabled=true;status("กำลังย่อและส่งรูป...","pair-status");
+ try{const imageData=await compressImage(file);await db.collection("pairs").doc(roomId).collection("messages").add({senderUid:user.uid,text:"",imageData,createdAt:serverTime()});$("image-input").value="";status("ส่งรูปแล้ว 💗","pair-status")}
+ catch(e){status("ส่งรูปไม่สำเร็จ: "+errText(e),"pair-status")}
+ finally{btn.disabled=false}
+};
 
-        <!-- GPS TAB -->
-        <div id="tab-gps" class="hidden space-y-3">
-            <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl flex justify-between items-center text-xs">
-                <div>
-                    <div class="font-bold text-slate-200">ตำแหน่ง GPS เรียลไทม์</div>
-                    <div class="text-[10px] text-slate-400" id="gps-status">กดปุ่มอัปเดตเพื่อดึงพิกัด...</div>
-                </div>
-                <button onclick="updateGPS()" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">
-                    <i class="fa-solid fa-rotate-right"></i> อัปเดตพิกัด
-                </button>
-            </div>
-            <div id="map" class="border border-slate-800 shadow-xl"></div>
-        </div>
-    </main>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        let map = null, userMarker = null;
-
-        function requestNotification() {
-            if ("Notification" in window) {
-                Notification.requestPermission().then(p => {
-                    if (p === "granted") new Notification("SweetConnect 💖", { body: "เปิดระบบแจ้งเตือนเรียบร้อยแล้ว" });
-                });
-            }
-        }
-
-        function switchTab(t) {
-            document.getElementById('tab-chat').classList.toggle('hidden', t !== 'chat');
-            document.getElementById('tab-gps').classList.toggle('hidden', t !== 'gps');
-            if (t === 'gps') initMap();
-        }
-
-        function sendMessage() {
-            const input = document.getElementById('chat-input');
-            if (!input.value.trim()) return;
-            const box = document.getElementById('chat-box');
-            const div = document.createElement('div');
-            div.className = "flex flex-col items-end space-y-0.5";
-            div.innerHTML = `<span class="text-[10px] text-slate-400 mr-1">คุณ</span><div class="bg-pink-600 text-white p-2.5 rounded-2xl rounded-tr-none max-w-[80%]">${input.value}</div>`;
-            box.appendChild(div); box.scrollTop = box.scrollHeight;
-            input.value = '';
-        }
-
-        function sendLoveAlert() {
-            const box = document.getElementById('chat-box');
-            const div = document.createElement('div');
-            div.className = "flex justify-center my-1";
-            div.innerHTML = `<div class="bg-pink-900/60 border border-pink-500/50 text-pink-300 text-xs px-3 py-1 rounded-full">คุณส่งหัวใจให้แฟนแล้ว! ❤️</div>`;
-            box.appendChild(div); box.scrollTop = box.scrollHeight;
-        }
-
-        function initMap() {
-            if (!map) {
-                map = L.map('map').setView([13.7563, 100.5018], 13);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            }
-            updateGPS();
-        }
-
-        function updateGPS() {
-            if ("geolocation" in navigator) {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    const { latitude: lat, longitude: lng } = pos.coords;
-                    document.getElementById('gps-status').textContent = "อัปเดตพิกัดสำเร็จ";
-                    if (map) {
-                        map.setView([lat, lng], 15);
-                        if (userMarker) map.removeLayer(userMarker);
-                        userMarker = L.marker([lat, lng]).addTo(map).bindPopup("ตำแหน่งของคุณ 📍").openPopup();
-                    }
-                });
-            }
-        }
-    </script>
+$("notify-btn").onclick=async()=>{
+ if(!("Notification"in window)){status("สภาพแวดล้อมนี้ไม่รองรับการแจ้งเตือนจากหน้าเว็บ","notify-status");return}
+ try{const p=await Notification.requestPermission();status(p==="granted"?"อนุญาตแล้ว แต่การแจ้งเตือนตอนปิดแอปต้องตั้งค่า Android เพิ่ม":"ยังไม่ได้อนุญาตการแจ้งเตือน","notify-status")}
+ catch(e){status("เปิดแจ้งเตือนไม่ได้: "+errText(e),"notify-status")}
+};
+function setupMap(){
+ if(map)return;
+ if(!window.L){status("โหลดแผนที่ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ต","gps-status");return}
+ map=L.map("map").setView([13.7563,100.5018],11);
+ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap"}).addTo(map)
+}
+function drawMarker(uid,loc){
+ if(!map||typeof loc.lat!=="number"||typeof loc.lng!=="number")return;
+ const mine=uid===user.uid;let marker=mine?myMarker:partnerMarker;
+ if(marker)marker.setLatLng([loc.lat,loc.lng]);
+ else{
+  marker=L.marker([loc.lat,loc.lng]).addTo(map).bindPopup(mine?"ตำแหน่งของคุณ 💗":"ตำแหน่งของแฟน 💗");
+  if(mine)myMarker=marker;else partnerMarker=marker
+ }
+ if(mine)map.setView([loc.lat,loc.lng],15)
+}
+function listenLocations(){
+ if(locationsUnsub){locationsUnsub();locationsUnsub=null}
+ if(!roomId||!roomData?.partnerUid)return;
+ setupMap();if(!map)return;
+ locationsUnsub=db.collection("pairs").doc(roomId).collection("locations").onSnapshot(snapshot=>{
+  snapshot.forEach(doc=>drawMarker(doc.id,doc.data()));
+  const partnerUid=user.uid===roomData.ownerUid?roomData.partnerUid:roomData.ownerUid;
+  const own=snapshot.docs.some(d=>d.id===user.uid),partner=snapshot.docs.some(d=>d.id===partnerUid);
+  if(!own&&!partner)status("ยังไม่มีใครแชร์ตำแหน่ง กดปุ่มแชร์ตำแหน่งของฉันก่อน","gps-status");
+  else if(own&&!partner)status("เห็นตำแหน่งของคุณแล้ว รอแฟนแชร์ตำแหน่ง","gps-status");
+  else if(!own&&partner)status("เห็นตำแหน่งแฟนแล้ว กดแชร์ตำแหน่งของคุณได้","gps-status");
+  else status("เห็นตำแหน่งของทั้งสองคนแล้ว 💗","gps-status");
+ },e=>status("อ่านตำแหน่งไม่ได้ ("+errText(e)+") ตรวจสอบ Rules ของ pairs/{รหัส}/locations/{uid}","gps-status"))
+}
+$("gps-btn").onclick=()=>{
+ if(!user||!roomId||!roomData?.partnerUid){status("ยังไม่พบการจับคู่: ให้แฟนเปิดแอป กรอกรหัส 10 ตัวจากห้องของแก แล้วรอคำว่า ‘จับคู่สำเร็จแล้ว’ ก่อนแชร์ GPS","gps-status");return}
+ if(!navigator.geolocation){status("เบราว์เซอร์นี้ไม่รองรับตำแหน่ง โปรดเปิดแอปผ่าน WebView/HTTPS","gps-status");return}
+ setupMap();status("กำลังขอตำแหน่งจากโทรศัพท์...","gps-status");
+ navigator.geolocation.getCurrentPosition(async pos=>{
+  try{
+   const loc={lat:pos.coords.latitude,lng:pos.coords.longitude,updatedAt:serverTime()};
+   await db.collection("pairs").doc(roomId).collection("locations").doc(user.uid).set(loc);
+   gpsSharing=true;status("แชร์ตำแหน่งล่าสุดแล้ว 💗","gps-status");drawMarker(user.uid,{lat:loc.lat,lng:loc.lng});
+  }catch(e){status("บันทึกตำแหน่งไม่ได้ ("+errText(e)+"). ตรวจสอบ Firestore Rules และการเชื่อมต่อ","gps-status")}
+ },err=>{
+  const msgs={1:"ไม่ได้รับอนุญาตตำแหน่ง: เปิดสิทธิ์ Location ให้แอป SweetConnect ในการตั้งค่า Android",2:"โทรศัพท์ระบุตำแหน่งไม่ได้: เปิด GPS และลองในที่สัญญาณดี",3:"อ่านตำแหน่งหมดเวลา: ลองอีกครั้งเมื่อ GPS พร้อม"};
+  status(msgs[err.code]||("อ่าน GPS ไม่สำเร็จ: "+err.message),"gps-status")
+ },{enableHighAccuracy:true,timeout:25000,maximumAge:0})
+};
+$("stop-gps-btn").onclick=async()=>{
+ if(!user||!roomId){status("ยังไม่มีห้องจับคู่","gps-status");return}
+ try{
+  await db.collection("pairs").doc(roomId).collection("locations").doc(user.uid).delete();
+  gpsSharing=false;if(myMarker&&map){map.removeLayer(myMarker);myMarker=null}
+  status("หยุดแชร์ตำแหน่งแล้ว","gps-status")
+ }catch(e){status("หยุดแชร์ไม่ได้ ("+errText(e)+")","gps-status")}
+};
+async function stopRoom(){
+ if(messageUnsub){messageUnsub();messageUnsub=null}
+ if(roomUnsub){roomUnsub();roomUnsub=null}
+ if(presenceUnsub){presenceUnsub();presenceUnsub=null}
+ presenceUid=null;
+ if(locationsUnsub){locationsUnsub();locationsUnsub=null}
+ if(heartbeat){clearInterval(heartbeat);heartbeat=null}
+ roomId=null;roomData=null;gpsSharing=false;$("messages").replaceChildren();
+ myMarker=null;partnerMarker=null;if(map){map.remove();map=null}
+}
+</script>
 </body>
 </html>
