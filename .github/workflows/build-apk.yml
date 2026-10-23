@@ -1,73 +1,61 @@
+
 name: Build SweetConnect APK
 
 on:
-workflow_dispatch:
+  workflow_dispatch:
 
 jobs:
-build:
-runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-steps:
-  - name: Download project
-    uses: actions/checkout@v4
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
-  - name: Set up Java
-    uses: actions/setup-java@v4
-    with:
-      distribution: temurin
-      java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
-  - name: Set up Gradle
-    uses: gradle/actions/setup-gradle@v4
-    with:
-      gradle-version: '8.9'
+      - name: Unzip project
+        run: |
+          unzip -o SweetConnectAndroid-project.zip -d extracted
+          find extracted -name settings.gradle -print
 
-  - name: Unzip project
-    run: |
-      unzip SweetConnectAndroid-project.zip -d extracted
-      find extracted -name settings.gradle -print
+      - name: Add AndroidX Core dependency
+        run: |
+          PROJECT_DIR=$(find extracted -name settings.gradle -printf '%h\n' | head -1)
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "หาไฟล์ settings.gradle ไม่พบ"
+            exit 1
+          fi
+          FILE="$PROJECT_DIR/app/build.gradle"
+          if [ ! -f "$FILE" ]; then
+            echo "หาไฟล์ app/build.gradle ไม่พบ"
+            exit 1
+          fi
+          if ! grep -q "androidx.core:core" "$FILE"; then
+            printf "\ndependencies {\n    implementation 'androidx.core:core:1.15.0'\n}\n" >> "$FILE"
+          fi
 
-  - name: Fix AndroidX Core dependency
-    run: |
-      PROJECT_DIR=$(find extracted -name settings.gradle -printf '%h\n' | head -1)
+      - name: Build APK
+        run: |
+          PROJECT_DIR=$(find extracted -name settings.gradle -printf '%h\n' | head -1)
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "หาไฟล์ settings.gradle ไม่พบ"
+            exit 1
+          fi
+          cd "$PROJECT_DIR"
+          gradle assembleDebug
 
-      if [ -z "$PROJECT_DIR" ]; then
-        echo "หาไฟล์ settings.gradle ไม่พบ"
-        exit 1
-      fi
-
-      if [ ! -f "$PROJECT_DIR/app/build.gradle" ]; then
-        echo "หาไฟล์ app/build.gradle ไม่พบ"
-        exit 1
-      fi
-
-      if ! grep -q "androidx.core:core" "$PROJECT_DIR/app/build.gradle"; then
-        cat >> "$PROJECT_DIR/app/build.gradle" <<'EOF'
-
-      dependencies {
-          implementation 'androidx.core:core:1.15.0'
-      }
-      EOF
-      fi
-
-      echo "ตรวจสอบ AndroidX Core แล้ว"
-      cat "$PROJECT_DIR/app/build.gradle"
-
-  - name: Build APK
-    run: |
-      PROJECT_DIR=$(find extracted -name settings.gradle -printf '%h\n' | head -1)
-
-      if [ -z "$PROJECT_DIR" ]; then
-        echo "หาไฟล์ settings.gradle ไม่พบ"
-        exit 1
-      fi
-
-      cd "$PROJECT_DIR"
-      gradle assembleDebug
-
-  - name: Upload APK
-    uses: actions/upload-artifact@v4
-    with:
-      name: SweetConnect-APK
-      path: extracted/**/app/build/outputs/apk/debug/*.apk
-      if-no-files-found: error
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SweetConnect-APK
+          path: extracted/**/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
