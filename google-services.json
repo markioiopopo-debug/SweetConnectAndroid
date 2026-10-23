@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "501101093673",
+    "project_id": "love-ee2b1",
+    "storage_bucket": "love-ee2b1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:501101093673:android:803682a434ffe0cec80d38",
+        "android_client_info": {
+          "package_name": "com.sweetconnect.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "501101093673-25juqbgeql5drq3s7j20ols56q0af8a9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8sLYB-92jP-SzYbsT_y-o1kLFKvrAcOc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "501101093673-25juqbgeql5drq3s7j20ols56q0af8a9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
