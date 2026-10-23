@@ -3,6 +3,7 @@ name: Build SweetConnect APK
 
 'on':
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,32 +24,53 @@ jobs:
 
       - name: Unzip project
         run: |
+          set -eu
           unzip -o SweetConnectAndroid-project.zip -d extracted
           find extracted -name settings.gradle -print
 
-      - name: Add AndroidX Core dependency
+      - name: Copy latest HTML into build project
         run: |
+          set -eu
           PROJECT_DIR=$(find extracted -name settings.gradle -printf '%h\n' | head -1)
           if [ -z "$PROJECT_DIR" ]; then
-            echo "หาไฟล์ settings.gradle ไม่พบ"
+            echo "หา settings.gradle ไม่พบ"
             exit 1
           fi
+
+          SOURCE="$GITHUB_WORKSPACE/app/src/main/assets/index.html"
+          TARGET="$PROJECT_DIR/app/src/main/assets/index.html"
+
+          if [ ! -f "$SOURCE" ]; then
+            echo "ไม่พบ HTML ใหม่ใน GitHub: $SOURCE"
+            exit 1
+          fi
+
+          mkdir -p "$(dirname "$TARGET")"
+          cp "$SOURCE" "$TARGET"
+
+          echo "ตรวจสอบไฟล์ HTML ที่จะนำไป Build:"
+          ls -l "$TARGET"
+          sha256sum "$SOURCE" "$TARGET"
+
+      - name: Add AndroidX Core dependency
+        run: |
+          set -eu
+          PROJECT_DIR=$(find extracted -name settings.gradle -printf '%h\n' | head -1)
           FILE="$PROJECT_DIR/app/build.gradle"
+
           if [ ! -f "$FILE" ]; then
             echo "หาไฟล์ app/build.gradle ไม่พบ"
             exit 1
           fi
+
           if ! grep -q "androidx.core:core" "$FILE"; then
             printf "\ndependencies {\n    implementation 'androidx.core:core:1.15.0'\n}\n" >> "$FILE"
           fi
 
       - name: Build APK
         run: |
+          set -eu
           PROJECT_DIR=$(find extracted -name settings.gradle -printf '%h\n' | head -1)
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "หาไฟล์ settings.gradle ไม่พบ"
-            exit 1
-          fi
           cd "$PROJECT_DIR"
           gradle assembleDebug
 
